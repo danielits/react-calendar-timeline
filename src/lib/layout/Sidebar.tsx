@@ -1,7 +1,7 @@
 import React, { Component } from "react";
 
 import { _get, arraysEqual } from "../utility/generic";
-import { ReactCalendarGroupRendererProps, TimelineGroupBase, TimelineKeys } from "../types/main";
+import { ReactCalendarGroupRendererProps, SidebarColumnDef, TimelineGroupBase, TimelineKeys } from "../types/main";
 
 type Props<CustomGroup extends TimelineGroupBase = TimelineGroupBase> = {
   groups: CustomGroup[];
@@ -11,6 +11,7 @@ type Props<CustomGroup extends TimelineGroupBase = TimelineGroupBase> = {
   keys: TimelineKeys;
   groupRenderer?: (props: ReactCalendarGroupRendererProps<CustomGroup>) => React.ReactNode;
   isRightSidebar?: boolean;
+  sidebarColumns?: SidebarColumnDef<CustomGroup>[];
 };
 
 export default class Sidebar<CustomGroup extends TimelineGroupBase = TimelineGroupBase> extends Component<
@@ -32,6 +33,30 @@ export default class Sidebar<CustomGroup extends TimelineGroupBase = TimelineGro
     groupTitleKey: string,
     groupRightTitleKey: string
   ) {
+    if (this.props.sidebarColumns) {
+      return (
+        <div style={{ display: "flex", width: "100%", height: "100%" }}>
+          {this.props.sidebarColumns.map((col) => (
+            <div
+              key={col.id}
+              style={{
+                width: col.width,
+                minWidth: col.width,
+                height: "100%",
+                overflow: "hidden",
+                display: "flex",
+                alignItems: "center",
+                paddingLeft: 6,
+                boxSizing: "border-box",
+                borderRight: "1px solid #bbb",
+              }}
+            >
+              {col.renderCell ? col.renderCell(group) : ((group as Record<string, unknown>)[col.id] as React.ReactNode)}
+            </div>
+          ))}
+        </div>
+      );
+    }
     if (this.props.groupRenderer) {
       return React.createElement(this.props.groupRenderer, {
         group,
@@ -57,7 +82,7 @@ export default class Sidebar<CustomGroup extends TimelineGroupBase = TimelineGro
     };
 
     const groupLines = this.props.groups.map((group, index) => {
-      const elementStyle = {
+      const elementStyle: React.CSSProperties = {
         height: `${groupHeights[index]}px`,
         lineHeight: `${groupHeights[index]}px`,
       };

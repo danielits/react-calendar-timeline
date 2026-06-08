@@ -16,6 +16,7 @@ export const defaultTimeSteps = {
   minute: 1,
   hour: 1,
   day: 1,
+  week: 1,
   month: 1,
   year: 1,
 };
@@ -40,10 +41,10 @@ export const defaultHeaderFormats: Record<string, UnitValue> = {
     short: "MM/YY",
   },
   week: {
-    long: "w",
-    mediumLong: "w",
-    medium: "w",
-    short: "w",
+    long: "[S]w",
+    mediumLong: "[S]w",
+    medium: "[S]w",
+    short: "[S]w",
   },
   day: {
     long: "dddd, LL",

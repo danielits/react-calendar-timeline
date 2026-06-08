@@ -6,6 +6,17 @@ import { SelectUnits } from "../utility/calendar";
 
 export type Id = number | string;
 
+export interface SidebarColumnDef<Group extends TimelineGroupBase = TimelineGroupBase> {
+  /** Unique identifier for the column */
+  id: string;
+  /** Header title shown above this column */
+  title: ReactNode;
+  /** Width of the column in pixels */
+  width: number;
+  /** Custom renderer for a cell in this column. If omitted, reads `group[id]`. */
+  renderCell?: (group: Group) => ReactNode;
+}
+
 export interface TimelineGroupBase {
   id: Id;
   title: ReactNode;
@@ -53,6 +64,7 @@ export interface TimelineContext {
   canvasTimeEnd: number;
   canvasWidth: number;
   timelineUnit: SelectUnits;
+  useWeeks: boolean;
 }
 
 export type GroupStack = {
@@ -133,6 +145,7 @@ export interface TimelineTimeSteps {
   minute: number;
   hour: number;
   day: number;
+  week: number;
   month: number;
   year: number;
 }

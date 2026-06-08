@@ -4,6 +4,7 @@ import { createBrowserRouter, Link, RouteObject, RouterProvider } from "react-ro
 import DemoMain from "./demo-main";
 import DemoPerformance from "./demo-performance";
 import DemoTreePGroups from "./demo-tree-groups";
+import MultiColumnsDemo from "./demo-multi-columns";
 import LinkedTimelines from "./demo-linked-timelines";
 import ElementResize from "./demo-element-resize";
 import Renderers from "./demo-renderers";
@@ -29,6 +30,10 @@ const routes: RouteObject[] = [
   {
     path: "/DemoTreePGroups",
     Component: withLayout(DemoTreePGroups),
+  },
+  {
+    path: "/MultiColumnsDemo",
+    Component: withLayout(MultiColumnsDemo),
   },
   {
     path: "/LinkedTimelines",

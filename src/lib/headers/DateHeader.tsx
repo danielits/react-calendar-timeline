@@ -28,6 +28,7 @@ export interface DateHeaderProps<Data> {
   className?: string | undefined;
   unit?: keyof TimelineTimeSteps | "primaryHeader" | undefined;
   timelineUnit: SelectUnits;
+  useWeeks: boolean;
   labelFormat?: string | FormatLabelFunction | undefined;
   intervalRenderer?: (props: IntervalRenderer<Data>) => ReactNode;
   headerData?: Data | undefined;
@@ -38,7 +39,7 @@ export interface DateHeaderProps<Data> {
 class DateHeaderInner<Data> extends React.Component<DateHeaderProps<Data>> {
   getHeaderUnit = (): keyof TimelineTimeSteps => {
     if (this.props.unit === "primaryHeader") {
-      return getNextUnit(this.props.timelineUnit);
+      return getNextUnit(this.props.timelineUnit, this.props.useWeeks);
     } else if (this.props.unit) {
       return this.props.unit;
     }
@@ -124,6 +125,7 @@ export function DateHeader<Data>({
         return (
           <DateHeaderInner
             timelineUnit={timelineState.timelineUnit}
+            useWeeks={timelineState.useWeeks}
             unit={unit}
             labelFormat={labelFormat || formatLabel}
             style={style}

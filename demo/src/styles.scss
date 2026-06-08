@@ -63,10 +63,10 @@ body {
   background-color: rgba(255, 0, 0, 0.5) !important; /* we need to overwrite the weekend rule */
 }
 
+/* Row height animation — applied only to animating rows via inline style */
 .row-root {
   position: relative;
   z-index: 999;
-  background-color: darkgray !important;
 }
 
 .sticky {

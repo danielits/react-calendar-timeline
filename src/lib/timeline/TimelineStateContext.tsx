@@ -43,6 +43,7 @@ export type TimelineStartProps = {
   showPeriod: (from: Dayjs, to: Dayjs) => void;
   timelineUnit: SelectUnits;
   timelineWidth: number;
+  useWeeks: boolean;
 };
 export type TimelineContextType = {
   getTimelineState: () => TimelineContextValue;
@@ -78,6 +79,7 @@ export class TimelineStateProvider extends React.Component<PropsWithChildren<Tim
       canvasWidth,
       timelineUnit,
       timelineWidth,
+      useWeeks,
     } = this.props;
     return {
       visibleTimeStart,
@@ -87,6 +89,7 @@ export class TimelineStateProvider extends React.Component<PropsWithChildren<Tim
       canvasWidth,
       timelineUnit,
       timelineWidth,
+      useWeeks,
     } as TimelineContextValue; // REVIEW,
   };
 

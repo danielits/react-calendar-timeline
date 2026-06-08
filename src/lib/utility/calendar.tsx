@@ -113,19 +113,12 @@ export function iterateTimes(
 // i think this is the distance between cell lines
 export const minCellWidth = 17;
 
-export function getMinUnit(zoom: number, width: number, timeSteps: TimelineTimeSteps) {
-  // for supporting weeks, its important to remember that each of these
-  // units has a natural progression to the other. i.e. a year is 12 months
-  // a month is 24 days, a day is 24 hours.
-  // with weeks this isnt the case so weeks needs to be handled specially
-  const timeDividers: Record<keyof TimelineTimeSteps, number> = {
-    second: 1000,
-    minute: 60,
-    hour: 60,
-    day: 24,
-    month: 30,
-    year: 12,
-  };
+export function getMinUnit(zoom: number, width: number, timeSteps: TimelineTimeSteps, useWeeks = true) {
+  // Hierarchy (useWeeks=true):  second → minute → hour → day → week → year
+  // Hierarchy (useWeeks=false): second → minute → hour → day → month → year
+  const timeDividers: { [k: string]: number } = useWeeks
+    ? { second: 1000, minute: 60, hour: 60, day: 24, week: 7, year: 52 }
+    : { second: 1000, minute: 60, hour: 60, day: 24, month: 30, year: 12 };
 
   let minUnit: keyof TimelineTimeSteps = "year";
 
@@ -138,14 +131,10 @@ export function getMinUnit(zoom: number, width: number, timeSteps: TimelineTimeS
     // (e.g. milliseconds to seconds, seconds to minutes, etc)
     nextTimeSpanInUnitContext = nextTimeSpanInUnitContext / timeDividers[unitKey];
 
-    // timeSteps is "
-    // With what step to display different units. E.g. 15 for minute means only minutes 0, 15, 30 and 45 will be shown."
-    // how many cells would be rendered given this time span, for this unit?
-    // e.g. for time span of 60 minutes, and time step of 1, we would render 60 cells
-    const cellsToBeRenderedForCurrentUnit = nextTimeSpanInUnitContext / timeSteps[unitKey];
+    const stepForUnit = timeSteps[unitKey] ?? 1;
+    const cellsToBeRenderedForCurrentUnit = nextTimeSpanInUnitContext / stepForUnit;
 
-    // what is happening here? why 3 if time steps are greater than 1??
-    const cellWidthToUse = timeSteps[unitKey] && timeSteps[unitKey] > 1 ? 3 * minCellWidth : minCellWidth;
+    const cellWidthToUse = stepForUnit > 1 ? 3 * minCellWidth : minCellWidth;
 
     // for the minWidth of a cell, how many cells would be rendered given
     // the current pixel width
@@ -163,23 +152,38 @@ export function getMinUnit(zoom: number, width: number, timeSteps: TimelineTimeS
   return minUnit;
 }
 
-export type SelectUnits = "second" | "minute" | "hour" | "day" | "month" | "year";
+export type SelectUnits = "second" | "minute" | "hour" | "day" | "week" | "month" | "year";
 export type SelectUnitsRes = Exclude<SelectUnits, "second">;
 
-export const NEXT_UNITS: Record<SelectUnits, SelectUnitsRes> = {
+export const NEXT_UNITS_WEEKS: Record<SelectUnits, SelectUnitsRes> = {
   second: "minute",
   minute: "hour",
   hour: "day",
-  day: "month",
+  day: "week",
+  week: "year",
   month: "year",
   year: "year",
 };
 
-export function getNextUnit(unit: SelectUnits): SelectUnitsRes {
-  if (!NEXT_UNITS[unit]) {
+export const NEXT_UNITS_MONTHS: Record<SelectUnits, SelectUnitsRes> = {
+  second: "minute",
+  minute: "hour",
+  hour: "day",
+  day: "month",
+  week: "year",
+  month: "year",
+  year: "year",
+};
+
+/** @deprecated use NEXT_UNITS_WEEKS or NEXT_UNITS_MONTHS */
+export const NEXT_UNITS = NEXT_UNITS_WEEKS;
+
+export function getNextUnit(unit: SelectUnits, useWeeks = true): SelectUnitsRes {
+  const map = useWeeks ? NEXT_UNITS_WEEKS : NEXT_UNITS_MONTHS;
+  if (!map[unit]) {
     throw new Error(`unit ${unit} is not acceptable`);
   }
-  return NEXT_UNITS[unit];
+  return map[unit];
 }
 
 /**
@@ -435,7 +439,7 @@ export function stackAll(
     // If group height is overridden, push new height
     // Do this late as item position still needs to be calculated
     groupTops.push(groupTop);
-    if (group.height) {
+    if (group.height !== undefined) {
       groupHeights.push(group.height);
     } else {
       groupHeights.push(Math.max(groupHeight, lineHeight));

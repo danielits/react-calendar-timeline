@@ -30,6 +30,7 @@ import {
   OnItemDragObjectMove,
   OnItemDragObjectResize,
   ReactCalendarGroupRendererProps,
+  SidebarColumnDef,
   TimelineContext,
   TimelineGroupBase,
   TimelineItemBase,
@@ -43,9 +44,11 @@ import { ItemProps, ResizeEdge } from "./items/Item";
 // import './Timeline.scss'
 import localizedFormat from "dayjs/plugin/localizedFormat";
 import advancedFormat from "dayjs/plugin/advancedFormat";
+import weekOfYear from "dayjs/plugin/weekOfYear";
 
 dayjs.extend(localizedFormat);
 dayjs.extend(advancedFormat);
+dayjs.extend(weekOfYear);
 
 export interface ReactCalendarTimelineRef {
   // Add any methods or properties you want to expose
@@ -80,6 +83,11 @@ export type ReactCalendarTimelineProps<
   visibleTimeStart?: dateType;
   visibleTimeEnd?: dateType;
   selected?: Id[] | undefined;
+  /** When `sidebarColumns` is provided, the sidebar renders multiple labelled columns
+   *  instead of a single title column. `sidebarWidth` is ignored in this case —
+   *  the total width is computed as the sum of column widths. */
+  sidebarColumns?: SidebarColumnDef<CustomGroup>[];
+  /** @deprecated Prefer `sidebarColumns` for multi-column sidebars */
   sidebarWidth: number;
   sidebarContent?: React.ReactNode | undefined;
   rightSidebarWidth: number;
@@ -106,6 +114,9 @@ export type ReactCalendarTimelineProps<
   traditionalZoom?: boolean | undefined;
   itemTouchSendsClick?: boolean | undefined;
   timeSteps: TimelineTimeSteps;
+  /** When true (default), the time hierarchy uses weeks instead of months: year → week → day → hour.
+   *  When false, the classic hierarchy is used: year → month → day → hour. */
+  useWeeks?: boolean;
   scrollRef?: (el: HTMLDivElement) => void;
   onItemDrag?(itemDragObject: OnItemDragObjectMove | OnItemDragObjectResize): void;
   onItemMove?(itemId: Id, dragTime: number, newGroupOrder: number): void;
@@ -219,6 +230,7 @@ export default class ReactCalendarTimeline<
     className: "",
     keys: defaultKeys,
     timeSteps: defaultTimeSteps,
+    useWeeks: true,
     headerRef: () => {},
     scrollRef: () => {},
 
@@ -240,11 +252,19 @@ export default class ReactCalendarTimeline<
     selected: null,
   };
 
+  getEffectiveSidebarWidth(props = this.props): number {
+    if (props.sidebarColumns?.length) {
+      return props.sidebarColumns.reduce((sum, col) => sum + col.width, 0);
+    }
+    return props.sidebarWidth;
+  }
+
   getTimelineContext = (): TimelineContext => {
     const { width, visibleTimeStart, visibleTimeEnd, canvasTimeStart, canvasTimeEnd } = this.state;
     const zoom = visibleTimeEnd - visibleTimeStart;
     const canvasWidth = getCanvasWidth(width, this.props.buffer!);
-    const minUnit = getMinUnit(zoom, width, this.props.timeSteps);
+    const useWeeks = this.props.useWeeks!;
+    const minUnit = getMinUnit(zoom, width, this.props.timeSteps, useWeeks);
     return {
       canvasWidth,
       timelineUnit: minUnit,
@@ -253,6 +273,7 @@ export default class ReactCalendarTimeline<
       visibleTimeEnd,
       canvasTimeStart,
       canvasTimeEnd,
+      useWeeks,
     };
   };
 
@@ -262,7 +283,7 @@ export default class ReactCalendarTimeline<
     const { timeSteps } = this.props;
 
     const zoom = visibleTimeEnd - visibleTimeStart;
-    const minUnit = getMinUnit(zoom, width, timeSteps);
+    const minUnit = getMinUnit(zoom, width, timeSteps, this.props.useWeeks!);
 
     return minUnit as Unit;
   };
@@ -423,7 +444,7 @@ export default class ReactCalendarTimeline<
       containerWidth = Math.round(this.container.current?.getBoundingClientRect().width ?? 0);
     }
 
-    const width = Math.round(containerWidth - props.sidebarWidth - props.rightSidebarWidth);
+    const width = Math.round(containerWidth - this.getEffectiveSidebarWidth(props) - props.rightSidebarWidth);
     if (width === this.state.width && this.scrollComponent) return;
 
     const canvasWidth = getCanvasWidth(width, props.buffer!);
@@ -817,16 +838,17 @@ export default class ReactCalendarTimeline<
   };
 
   sidebar(height: number, groupHeights: number[]) {
-    const { sidebarWidth } = this.props;
+    const effectiveWidth = this.getEffectiveSidebarWidth();
     return (
-      sidebarWidth && (
+      effectiveWidth > 0 && (
         <Sidebar
           groups={this.props.groups}
           groupRenderer={this.props.groupRenderer}
           keys={this.props.keys}
-          width={sidebarWidth}
+          width={effectiveWidth}
           groupHeights={groupHeights}
           height={height}
+          sidebarColumns={this.props.sidebarColumns as SidebarColumnDef[] | undefined}
         />
       )
     );
@@ -977,7 +999,8 @@ export default class ReactCalendarTimeline<
   };
 
   render() {
-    const { items, groups, sidebarWidth, rightSidebarWidth, timeSteps, traditionalZoom, buffer } = this.props;
+    const { items, groups, rightSidebarWidth, timeSteps, traditionalZoom, buffer } = this.props;
+    const effectiveSidebarWidth = this.getEffectiveSidebarWidth();
     const { draggingItem, resizingItem, width, visibleTimeStart, visibleTimeEnd, canvasTimeStart, canvasTimeEnd } =
       this.state;
     const scrollOffset = this.getScrollOffset();
@@ -985,7 +1008,7 @@ export default class ReactCalendarTimeline<
 
     const zoom = visibleTimeEnd - visibleTimeStart;
     const canvasWidth = getCanvasWidth(width, buffer!);
-    const minUnit = getMinUnit(zoom, width, timeSteps);
+    const minUnit = getMinUnit(zoom, width, timeSteps, this.props.useWeeks!);
 
     const isInteractingWithItem = !!draggingItem || !!resizingItem;
 
@@ -1028,14 +1051,16 @@ export default class ReactCalendarTimeline<
         showPeriod={this.showPeriod}
         timelineUnit={minUnit}
         timelineWidth={this.state.width}
+        useWeeks={this.props.useWeeks!}
       >
         <TimelineMarkersProvider>
           <TimelineHeadersProvider
             registerScroll={this.handleHeaderRef}
             timeSteps={timeSteps}
-            leftSidebarWidth={this.props.sidebarWidth}
+            leftSidebarWidth={effectiveSidebarWidth}
             rightSidebarWidth={this.props.rightSidebarWidth}
             scrollOffset={scrollOffset}
+            sidebarColumns={this.props.sidebarColumns as SidebarColumnDef[] | undefined}
           >
             <div
               style={this.props.style}
@@ -1044,7 +1069,7 @@ export default class ReactCalendarTimeline<
             >
               {this.renderHeaders()}
               <div style={outerComponentStyle} className="rct-outer">
-                {sidebarWidth > 0 ? this.sidebar(height, groupHeights) : null}
+                {effectiveSidebarWidth > 0 ? this.sidebar(height, groupHeights) : null}
                 <ScrollElement
                   scrollRef={this.getScrollElementRef}
                   width={width}

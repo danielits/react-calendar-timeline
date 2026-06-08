@@ -4,111 +4,238 @@ import dayjs from "dayjs";
 
 import Timeline, { TimelineMarkers, TodayMarker, CustomMarker, CursorMarker } from "../../../src/index";
 
-import generateFakeData from "../generate-fake-data";
-
 var minTime = dayjs().add(-6, "months").valueOf();
 var maxTime = dayjs().add(6, "months").valueOf();
 
-var keys = {
-  groupIdKey: "id",
-  groupTitleKey: "title",
-  groupRightTitleKey: "rightTitle",
-  itemIdKey: "id",
-  itemTitleKey: "title",
-  itemDivTitleKey: "title",
-  itemGroupKey: "group",
-  itemTimeStartKey: "start_time",
-  itemTimeEndKey: "end_time",
-};
+// ─── Datos de ejemplo con jerarquía Faena / Zona / Equipo ──────────────────
+const FAENAS = ["Faena Norte", "Faena Sur"];
+const ZONAS = ["Zona A", "Zona B", "Zona C"];
+const EQUIPOS = ["Excavadora 1", "Excavadora 2", "Camión 1", "Camión 2"];
+const COLORS = ["#2196F3", "#4CAF50", "#FF9800", "#9C27B0", "#F44336", "#00BCD4"];
+
+function buildGroups() {
+  const groups = [];
+  let id = 1;
+  for (const faena of FAENAS) {
+    const faenaId = id++;
+    groups.push({ id: faenaId, faena, zona: "", equipo: "", level: 0, parent: null });
+    for (const zona of ZONAS) {
+      const zonaId = id++;
+      groups.push({ id: zonaId, faena, zona, equipo: "", level: 1, parent: faenaId });
+      for (const equipo of EQUIPOS) {
+        groups.push({ id: id++, faena, zona, equipo, level: 2, parent: zonaId });
+      }
+    }
+  }
+  return groups;
+}
+
+function buildItems(groups) {
+  const items = [];
+  let id = 1;
+  for (const group of groups) {
+    const count = group.level === 0 ? 1 : group.level === 1 ? 2 : 1 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < count; i++) {
+      const startOffset = Math.floor(Math.random() * 30) - 10;
+      const duration = 1 + Math.floor(Math.random() * 7);
+      items.push({
+        id: id++,
+        group: group.id,
+        title: `Tarea ${id}`,
+        start_time: dayjs().add(startOffset, "day").valueOf(),
+        end_time: dayjs()
+          .add(startOffset + duration, "day")
+          .valueOf(),
+        bgColor: COLORS[id % COLORS.length],
+      });
+    }
+  }
+  return items;
+}
+
+const ALL_GROUPS = buildGroups();
+const ALL_ITEMS = buildItems(ALL_GROUPS);
+
+const FAENA_W = 130;
+const ZONA_W = 100;
+const EQUIPO_W = 130;
+const LINE_HEIGHT = 36;
+const ANIM_MS = 240;
+const easeInOut = (t) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t);
+
+function Chevron({ open }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{
+        flexShrink: 0,
+        transition: "transform 0.22s ease",
+        transform: open ? "rotate(90deg)" : "rotate(0deg)",
+      }}
+    >
+      <polyline points="9 18 15 12 9 6" />
+    </svg>
+  );
+}
 
 export default class App extends Component {
   constructor(props) {
     super(props);
-
-    const { groups, items } = generateFakeData();
-    const defaultTimeStart = dayjs(items[0].start_time).startOf("day").toDate().valueOf();
-    const defaultTimeEnd = dayjs(items[0].end_time).startOf("day").add(1, "day").toDate().valueOf();
-
+    const openFaenas = {};
+    ALL_GROUPS.filter((g) => g.level === 0).forEach((g) => {
+      openFaenas[g.id] = true;
+    });
     this.state = {
-      groups,
-      items: items.map((item) => {
-        return {
-          ...item,
-          start_time: dayjs(item.start_time).valueOf(),
-          end_time: dayjs(item.end_time).valueOf(),
-        };
-      }),
-      defaultTimeStart,
-      defaultTimeEnd,
+      openFaenas,
+      openZonas: {},
+      animHeights: {},
+      useWeeks: true,
+      items: [...ALL_ITEMS],
     };
   }
 
-  handleCanvasClick = (groupId, time) => {
-    console.log("Canvas clicked", groupId, dayjs(time).format());
+  _animFrames = {};
+
+  componentWillUnmount() {
+    Object.values(this._animFrames).forEach(cancelAnimationFrame);
+  }
+
+  // ─── Animation helpers (rAF-based so items below also follow) ────────────
+
+  _collapseRows(ids) {
+    ids.forEach((id) => {
+      if (this._animFrames[id]) cancelAnimationFrame(this._animFrames[id]);
+    });
+    const startHeights = Object.fromEntries(ids.map((id) => [id, this.state.animHeights[id] ?? LINE_HEIGHT]));
+    const startTime = performance.now();
+
+    const tick = (now) => {
+      const t = Math.min((now - startTime) / ANIM_MS, 1);
+      const heights = Object.fromEntries(ids.map((id) => [id, Math.round(startHeights[id] * (1 - easeInOut(t)))]));
+      this.setState((p) => ({ animHeights: { ...p.animHeights, ...heights } }));
+
+      if (t < 1) {
+        const fid = requestAnimationFrame(tick);
+        ids.forEach((id) => (this._animFrames[id] = fid));
+      } else {
+        ids.forEach((id) => delete this._animFrames[id]);
+        this.setState((p) => {
+          const next = { ...p.animHeights };
+          ids.forEach((id) => delete next[id]);
+          return { animHeights: next };
+        });
+      }
+    };
+    const fid = requestAnimationFrame(tick);
+    ids.forEach((id) => (this._animFrames[id] = fid));
+  }
+
+  _expandRows(ids) {
+    ids.forEach((id) => {
+      if (this._animFrames[id]) cancelAnimationFrame(this._animFrames[id]);
+    });
+    const startTime = performance.now();
+
+    this.setState(
+      (p) => ({ animHeights: { ...p.animHeights, ...Object.fromEntries(ids.map((id) => [id, 0])) } }),
+      () => {
+        const tick = (now) => {
+          const t = Math.min((now - startTime) / ANIM_MS, 1);
+          const heights = Object.fromEntries(ids.map((id) => [id, Math.round(LINE_HEIGHT * easeInOut(t))]));
+          this.setState((p) => ({ animHeights: { ...p.animHeights, ...heights } }));
+
+          if (t < 1) {
+            const fid = requestAnimationFrame(tick);
+            ids.forEach((id) => (this._animFrames[id] = fid));
+          } else {
+            ids.forEach((id) => delete this._animFrames[id]);
+            this.setState((p) => {
+              const next = { ...p.animHeights };
+              ids.forEach((id) => delete next[id]);
+              return { animHeights: next };
+            });
+          }
+        };
+        const fid = requestAnimationFrame(tick);
+        ids.forEach((id) => (this._animFrames[id] = fid));
+      }
+    );
+  }
+
+  // ─── Toggle handlers ─────────────────────────────────────────────────────
+
+  toggleFaena = (faenaId) => {
+    const { openFaenas, openZonas } = this.state;
+    if (openFaenas[faenaId]) {
+      const zonaIds = ALL_GROUPS.filter((g) => g.level === 1 && g.parent === faenaId).map((g) => g.id);
+      const equipoIds = ALL_GROUPS.filter((g) => g.level === 2 && openZonas[g.parent])
+        .filter((g) => ALL_GROUPS.find((z) => z.id === g.parent)?.parent === faenaId)
+        .map((g) => g.id);
+      this.setState((p) => ({ openFaenas: { ...p.openFaenas, [faenaId]: false } }));
+      this._collapseRows([...zonaIds, ...equipoIds]);
+    } else {
+      const zonaIds = ALL_GROUPS.filter((g) => g.level === 1 && g.parent === faenaId).map((g) => g.id);
+      this.setState((p) => ({ openFaenas: { ...p.openFaenas, [faenaId]: true } }));
+      this._expandRows(zonaIds);
+    }
   };
 
-  handleCanvasDoubleClick = (groupId, time) => {
-    console.log("Canvas double clicked", groupId, dayjs(time).format());
-  };
-
-  handleCanvasContextMenu = (group, time) => {
-    console.log("Canvas context menu", group, dayjs(time).format());
-  };
-
-  handleItemClick = (itemId, _, time) => {
-    console.log("Clicked: " + itemId, dayjs(time).format());
-  };
-
-  handleItemSelect = (itemId, _, time) => {
-    console.log("Selected: " + itemId, dayjs(time).format());
-  };
-
-  handleItemDoubleClick = (itemId, _, time) => {
-    console.log("Double Click: " + itemId, dayjs(time).format());
-  };
-
-  handleItemContextMenu = (itemId, _, time) => {
-    console.log("Context Menu: " + itemId, dayjs(time).format());
+  toggleZona = (zonaId) => {
+    const { openZonas } = this.state;
+    const equipoIds = ALL_GROUPS.filter((g) => g.level === 2 && g.parent === zonaId).map((g) => g.id);
+    if (openZonas[zonaId]) {
+      this.setState((p) => ({ openZonas: { ...p.openZonas, [zonaId]: false } }));
+      this._collapseRows(equipoIds);
+    } else {
+      this.setState((p) => ({ openZonas: { ...p.openZonas, [zonaId]: true } }));
+      this._expandRows(equipoIds);
+    }
   };
 
   handleItemMove = (itemId, dragTime, newGroupOrder) => {
-    const { items, groups } = this.state;
-
-    const group = groups[newGroupOrder];
-
+    const { openFaenas, openZonas, animHeights, items } = this.state;
+    const visibleGroups = ALL_GROUPS.filter((g) => {
+      if (g.level === 0) return true;
+      if (g.level === 1) return !!openFaenas[g.parent] || g.id in animHeights;
+      const zona = ALL_GROUPS.find((z) => z.id === g.parent);
+      return (!!openFaenas[zona?.parent] && !!openZonas[g.parent]) || g.id in animHeights;
+    });
+    const newGroup = visibleGroups[newGroupOrder];
     this.setState({
       items: items.map((item) =>
         item.id === itemId
-          ? Object.assign({}, item, {
-              start: dragTime,
-              end: dragTime + (item.end - item.start),
-              group: group.id,
-            })
+          ? {
+              ...item,
+              start_time: dragTime,
+              end_time: dragTime + (item.end_time - item.start_time),
+              group: newGroup.id,
+            }
           : item
       ),
     });
-
-    console.log("Moved", itemId, dragTime, newGroupOrder);
   };
 
   handleItemResize = (itemId, time, edge) => {
-    const { items } = this.state;
-
-    this.setState({
-      items: items.map((item) =>
+    this.setState((prev) => ({
+      items: prev.items.map((item) =>
         item.id === itemId
-          ? Object.assign({}, item, {
-              start: edge === "left" ? time : item.start,
-              end: edge === "left" ? item.end : time,
-            })
+          ? {
+              ...item,
+              start_time: edge === "left" ? time : item.start_time,
+              end_time: edge === "left" ? item.end_time : time,
+            }
           : item
       ),
-    });
-
-    console.log("Resized", itemId, time, edge);
+    }));
   };
 
-  // this limits the timeline to -6 months ... +6 months
   handleTimeChange = (visibleTimeStart, visibleTimeEnd, updateScrollCanvas) => {
     if (visibleTimeStart < minTime && visibleTimeEnd > maxTime) {
       updateScrollCanvas(minTime, maxTime);
@@ -121,66 +248,158 @@ export default class App extends Component {
     }
   };
 
-  handleZoom = (timelineContext, unit) => {
-    console.log("Zoomed", timelineContext, unit);
-  };
-
-  moveResizeValidator = (action, item, time) => {
-    if (time < new Date().getTime()) {
-      var newTime = Math.ceil(new Date().getTime() / (15 * 60 * 1000)) * (15 * 60 * 1000);
-      return newTime;
-    }
-
-    return time;
-  };
-
   render() {
-    const { groups, items, defaultTimeStart, defaultTimeEnd } = this.state;
+    const { openFaenas, openZonas, animHeights, useWeeks, items } = this.state;
+
+    const visibleGroups = ALL_GROUPS.filter((g) => {
+      if (g.level === 0) return true;
+      if (g.level === 1) return !!openFaenas[g.parent] || g.id in animHeights;
+      const zona = ALL_GROUPS.find((z) => z.id === g.parent);
+      return (!!openFaenas[zona?.parent] && !!openZonas[g.parent]) || g.id in animHeights;
+    }).map((g) => ({ ...g, height: g.id in animHeights ? animHeights[g.id] : undefined }));
+
+    const visibleIds = new Set(visibleGroups.map((g) => g.id));
+    const visibleItems = items.filter((item) => visibleIds.has(item.group) && !(item.group in animHeights));
+
+    const sidebarColumns = [
+      {
+        id: "faena",
+        title: "Faena",
+        width: FAENA_W,
+        renderCell: (group) => {
+          if (group.level !== 0) return null;
+          return (
+            <span
+              onClick={() => this.toggleFaena(group.id)}
+              style={{
+                cursor: "pointer",
+                userSelect: "none",
+                fontWeight: "bold",
+                width: "100%",
+                paddingLeft: 4,
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+              }}
+            >
+              <Chevron open={!!openFaenas[group.id]} />
+              {group.faena}
+            </span>
+          );
+        },
+      },
+      {
+        id: "zona",
+        title: "Zona",
+        width: ZONA_W,
+        renderCell: (group) => {
+          if (group.level !== 1) return null;
+          return (
+            <span
+              onClick={() => this.toggleZona(group.id)}
+              style={{
+                cursor: "pointer",
+                userSelect: "none",
+                paddingLeft: 4,
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+              }}
+            >
+              <Chevron open={!!openZonas[group.id]} />
+              {group.zona}
+            </span>
+          );
+        },
+      },
+      {
+        id: "equipo",
+        title: "Equipo",
+        width: EQUIPO_W,
+        renderCell: (group) => {
+          if (group.level !== 2) return null;
+          return <span style={{ paddingLeft: 12 }}>{group.equipo}</span>;
+        },
+      },
+    ];
 
     return (
-      <Timeline
-        groups={groups}
-        items={items}
-        keys={keys}
-        sidebarWidth={150}
-        sidebarContent={<div>Above The Left</div>}
-        canMove
-        canResize="right"
-        canSelect
-        itemsSorted
-        itemTouchSendsClick={false}
-        stackItems
-        itemHeightRatio={0.75}
-        onCanvasClick={this.handleCanvasClick}
-        onCanvasDoubleClick={this.handleCanvasDoubleClick}
-        onCanvasContextMenu={this.handleCanvasContextMenu}
-        onItemClick={this.handleItemClick}
-        onItemSelect={this.handleItemSelect}
-        onItemContextMenu={this.handleItemContextMenu}
-        onItemMove={this.handleItemMove}
-        onItemResize={this.handleItemResize}
-        onItemDoubleClick={this.handleItemDoubleClick}
-        onTimeChange={this.handleTimeChange}
-        onZoom={this.handleZoom}
-        moveResizeValidator={this.moveResizeValidator}
-        buffer={3}
-        minZoom={60 * 60 * 1000} // 1 year
-        maxZoom={365 * 24 * 86400 * 1000 * 20} // 20 years
-        defaultTimeStart={defaultTimeStart}
-        defaultTimeEnd={defaultTimeEnd}
-      >
-        <TimelineMarkers>
-          <TodayMarker />
-          <CustomMarker date={dayjs().startOf("day").valueOf() + 1000 * 60 * 60 * 2} />
-          <CustomMarker date={dayjs().add(3, "day").valueOf()}>
-            {({ styles }) => {
-              const newStyles = { ...styles, backgroundColor: "blue" };
-              return <div style={newStyles} />;
-            }}
-          </CustomMarker>
-          <CursorMarker />
-        </TimelineMarkers>
-      </Timeline>
+      <div>
+        <label
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            margin: "8px 0 4px 8px",
+            fontFamily: "sans-serif",
+            fontSize: 14,
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={useWeeks}
+            onChange={(e) => this.setState({ useWeeks: e.target.checked })}
+            style={{ width: 16, height: 16 }}
+          />
+          Usar semanas (año → semana → día → hora)
+        </label>
+        <Timeline
+          groups={visibleGroups}
+          items={visibleItems}
+          keys={{
+            groupIdKey: "id",
+            groupTitleKey: "equipo",
+            groupRightTitleKey: "equipo",
+            itemIdKey: "id",
+            itemTitleKey: "title",
+            itemDivTitleKey: "title",
+            itemGroupKey: "group",
+            itemTimeStartKey: "start_time",
+            itemTimeEndKey: "end_time",
+          }}
+          sidebarColumns={sidebarColumns}
+          sidebarWidth={FAENA_W + ZONA_W + EQUIPO_W}
+          defaultTimeStart={dayjs().startOf("week").subtract(1, "week").valueOf()}
+          defaultTimeEnd={dayjs().startOf("week").add(5, "week").valueOf()}
+          stackItems
+          canMove
+          canResize="right"
+          canSelect
+          itemTouchSendsClick={false}
+          itemHeightRatio={0.75}
+          lineHeight={LINE_HEIGHT}
+          useWeeks={useWeeks}
+          onTimeChange={this.handleTimeChange}
+          onItemMove={this.handleItemMove}
+          onItemResize={this.handleItemResize}
+          buffer={3}
+          minZoom={60 * 60 * 1000}
+          maxZoom={365 * 24 * 86400 * 1000 * 20}
+          horizontalLineClassNamesForGroup={(group) => (group.level < 2 ? ["row-root"] : [])}
+          itemRenderer={({ item, getItemProps }) => (
+            <div
+              {...getItemProps({
+                style: {
+                  background: item.bgColor,
+                  border: "none",
+                  borderRadius: 4,
+                  color: "#fff",
+                  fontSize: 12,
+                  padding: "2px 6px",
+                },
+              })}
+            >
+              {item.title}
+            </div>
+          )}
+        >
+          <TimelineMarkers>
+            <TodayMarker />
+            <CursorMarker />
+          </TimelineMarkers>
+        </Timeline>
+      </div>
     );
   }
 }
