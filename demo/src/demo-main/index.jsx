@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Component } from "react";
+import { createPortal } from "react-dom";
 import dayjs from "dayjs";
 
 import Timeline, { TimelineMarkers, TodayMarker, CustomMarker, CursorMarker } from "../../../src/index";
@@ -7,11 +8,21 @@ import Timeline, { TimelineMarkers, TodayMarker, CustomMarker, CursorMarker } fr
 var minTime = dayjs().add(-6, "months").valueOf();
 var maxTime = dayjs().add(6, "months").valueOf();
 
+// ─── Item types ──────────────────────────────────────────────────────────────
+const ITEM_TYPES = ["prem", "rampup", "main", "rampdown", "postm"];
+
+export const ITEM_TYPE_STYLES = {
+  prem: { label: "Pre-Main", background: "#90A4AE" },
+  rampup: { label: "Ramp Up", background: "#66BB6A" },
+  main: { label: "Main", background: "#1976D2" },
+  rampdown: { label: "Ramp Down", background: "#EF5350" },
+  postm: { label: "Post-Main", background: "#AB47BC" },
+};
+
 // ─── Datos de ejemplo con jerarquía Faena / Zona / Equipo ──────────────────
 const FAENAS = ["Faena Norte", "Faena Sur"];
 const ZONAS = ["Zona A", "Zona B", "Zona C"];
 const EQUIPOS = ["Excavadora 1", "Excavadora 2", "Camión 1", "Camión 2"];
-const COLORS = ["#2196F3", "#4CAF50", "#FF9800", "#9C27B0", "#F44336", "#00BCD4"];
 
 function buildGroups() {
   const groups = [];
@@ -38,6 +49,7 @@ function buildItems(groups) {
     for (let i = 0; i < count; i++) {
       const startOffset = Math.floor(Math.random() * 30) - 10;
       const duration = 1 + Math.floor(Math.random() * 7);
+      const itemType = ITEM_TYPES[id % ITEM_TYPES.length];
       items.push({
         id: id++,
         group: group.id,
@@ -46,7 +58,8 @@ function buildItems(groups) {
         end_time: dayjs()
           .add(startOffset + duration, "day")
           .valueOf(),
-        bgColor: COLORS[id % COLORS.length],
+        itemType,
+        showMenu: id % 3 === 0,
       });
     }
   }
@@ -62,6 +75,122 @@ const EQUIPO_W = 130;
 const LINE_HEIGHT = 36;
 const ANIM_MS = 240;
 const easeInOut = (t) => (t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t);
+
+function ItemMenu({ item, menuOptions, onMenuAction }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+  const btnRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => {
+      if (btnRef.current && !btnRef.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const handleClick = (e) => {
+    e.stopPropagation();
+    const rect = btnRef.current.getBoundingClientRect();
+    setPos({ top: rect.bottom + 4, left: rect.left + rect.width / 2 });
+    setOpen((v) => !v);
+  };
+
+  return (
+    <div
+      ref={btnRef}
+      style={{ position: "relative", flexShrink: 0 }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={handleClick}
+    >
+      <div
+        style={{
+          width: 16,
+          height: 16,
+          borderRadius: "50%",
+          background: "rgba(255,255,255,0.25)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          cursor: "pointer",
+          color: "#fff",
+          fontSize: 13,
+          lineHeight: 1,
+          userSelect: "none",
+          flexShrink: 0,
+        }}
+      >
+        ⋮
+      </div>
+      {open &&
+        createPortal(
+          <div
+            style={{
+              position: "fixed",
+              top: pos.top,
+              left: pos.left,
+              transform: "translateX(-50%)",
+              zIndex: 99999,
+              background: "#fff",
+              border: "1px solid #ccc",
+              borderRadius: 4,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+              minWidth: 140,
+              color: "#333",
+              fontSize: 12,
+            }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            {menuOptions.map((opt) => (
+              <div
+                key={opt.id}
+                style={{ padding: "7px 14px", cursor: "pointer" }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "#f0f0f0")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setOpen(false);
+                  onMenuAction && onMenuAction({ itemId: item.id, item, optionId: opt.id, optionLabel: opt.label });
+                }}
+              >
+                {opt.label}
+              </div>
+            ))}
+          </div>,
+          document.body
+        )}
+    </div>
+  );
+}
+
+function ItemTypeLegend() {
+  return (
+    <div
+      style={{ display: "flex", gap: 12, padding: "6px 8px", flexWrap: "wrap", fontFamily: "sans-serif", fontSize: 12 }}
+    >
+      {ITEM_TYPES.map((type) => {
+        const s = ITEM_TYPE_STYLES[type];
+        return (
+          <div key={type} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            <div
+              style={{
+                width: 28,
+                height: 16,
+                background: s.background,
+                borderRadius: 3,
+                borderLeft: s.borderLeft,
+              }}
+            />
+            <span style={{ color: "#333" }}>{s.label}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function Chevron({ open }) {
   return (
@@ -98,6 +227,7 @@ export default class App extends Component {
       animHeights: {},
       useWeeks: true,
       items: [...ALL_ITEMS],
+      lastAction: null,
     };
   }
 
@@ -248,8 +378,22 @@ export default class App extends Component {
     }
   };
 
+  handleMenuAction = (action) => {
+    // action = { itemId, item, optionId, optionLabel }
+    // En Dash: aquí se dispararía el callback con estos datos
+    this.setState({ lastAction: action });
+  };
+
+  // Opciones del menú — en Dash se pasarían como prop desde Python
+  menuOptions = [
+    { id: "detail", label: "Ver detalle" },
+    { id: "edit", label: "Editar" },
+    { id: "duplicate", label: "Duplicar" },
+    { id: "delete", label: "Eliminar" },
+  ];
+
   render() {
-    const { openFaenas, openZonas, animHeights, useWeeks, items } = this.state;
+    const { openFaenas, openZonas, animHeights, useWeeks, items, lastAction } = this.state;
 
     const visibleGroups = ALL_GROUPS.filter((g) => {
       if (g.level === 0) return true;
@@ -344,6 +488,7 @@ export default class App extends Component {
           />
           Usar semanas (año → semana → día → hora)
         </label>
+        <ItemTypeLegend />
         <Timeline
           groups={visibleGroups}
           items={visibleItems}
@@ -364,10 +509,11 @@ export default class App extends Component {
           defaultTimeEnd={dayjs().startOf("week").add(5, "week").valueOf()}
           stackItems
           canMove
-          canResize="right"
+          canResize="both"
           canSelect
+          useResizeHandle
           itemTouchSendsClick={false}
-          itemHeightRatio={0.75}
+          itemHeightRatio={1}
           lineHeight={LINE_HEIGHT}
           useWeeks={useWeeks}
           onTimeChange={this.handleTimeChange}
@@ -376,29 +522,71 @@ export default class App extends Component {
           buffer={3}
           minZoom={60 * 60 * 1000}
           maxZoom={365 * 24 * 86400 * 1000 * 20}
-          horizontalLineClassNamesForGroup={(group) => (group.level < 2 ? ["row-root"] : [])}
-          itemRenderer={({ item, getItemProps }) => (
-            <div
-              {...getItemProps({
-                style: {
-                  background: item.bgColor,
-                  border: "none",
-                  borderRadius: 4,
-                  color: "#fff",
-                  fontSize: 12,
-                  padding: "2px 6px",
-                },
-              })}
-            >
-              {item.title}
-            </div>
-          )}
+          itemRenderer={({ item, itemContext, getItemProps, getResizeProps }) => {
+            const ts = ITEM_TYPE_STYLES[item.itemType] || ITEM_TYPE_STYLES.main;
+            const selected = itemContext.selected;
+            const { left: leftResizeProps, right: rightResizeProps } = getResizeProps();
+            return (
+              <div
+                {...getItemProps({
+                  style: {
+                    background: ts.background,
+                    filter: selected ? "brightness(0.75)" : "none",
+                    border: `1px solid ${selected ? "#555" : "#999"}`,
+                    borderRadius: 0,
+                    color: "#fff",
+                    fontSize: 12,
+                    overflow: "hidden",
+                    boxSizing: "border-box",
+                    display: "flex",
+                    alignItems: "stretch",
+                  },
+                })}
+              >
+                {leftResizeProps && <div {...leftResizeProps} />}
+                <div
+                  className="rct-item-content"
+                  style={{
+                    maxHeight: itemContext.dimensions.height,
+                    overflow: "visible",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flex: 1,
+                    gap: 4,
+                  }}
+                >
+                  {Math.round((item.end_time - item.start_time) / (1000 * 60 * 60))} h
+                  {item.showMenu && (
+                    <ItemMenu item={item} menuOptions={this.menuOptions} onMenuAction={this.handleMenuAction} />
+                  )}
+                </div>
+                {rightResizeProps && <div {...rightResizeProps} />}
+              </div>
+            );
+          }}
         >
           <TimelineMarkers>
             <TodayMarker />
             <CursorMarker />
           </TimelineMarkers>
         </Timeline>
+        {lastAction && (
+          <div
+            style={{
+              marginTop: 8,
+              padding: "6px 10px",
+              background: "#f5f5f5",
+              border: "1px solid #ddd",
+              borderRadius: 4,
+              fontSize: 12,
+              fontFamily: "monospace",
+            }}
+          >
+            <strong>Último evento:</strong> opción <em>{lastAction.optionLabel}</em> ({lastAction.optionId}) en ítem #
+            {lastAction.itemId} &mdash; tipo: {lastAction.item.itemType}
+          </div>
+        )}
       </div>
     );
   }

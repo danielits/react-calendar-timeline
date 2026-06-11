@@ -659,11 +659,11 @@ export default class Item<CustomItem extends TimelineItemBase<number>> extends C
       this.props.selected ? selectedStyle : {},
       this.props.selected && this.canMove(this.props) ? selectedAndCanMove : {},
       this.props.selected && this.canResizeLeft(this.props) ? selectedAndCanResizeLeft : {},
-      this.props.selected && this.canResizeLeft(this.props) && this.state.dragging
+      this.props.selected && this.canResizeLeft(this.props) && this.state.resizing
         ? selectedAndCanResizeLeftAndDragLeft
         : {},
       this.props.selected && this.canResizeRight(this.props) ? selectedAndCanResizeRight : {},
-      this.props.selected && this.canResizeRight(this.props) && this.state.dragging
+      this.props.selected && this.canResizeRight(this.props) && this.state.resizing
         ? selectedAndCanResizeRightAndDragRight
         : {},
       props.style,
