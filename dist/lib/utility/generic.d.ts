@@ -1,0 +1,12 @@
+type GetObject = Record<string, any>;
+export declare function _get(object: GetObject, key: string): any;
+interface CountObject {
+  count?(): number;
+  length?: number;
+}
+export declare function _length(object: CountObject): number | undefined;
+export declare function arraysEqual<T>(array1: T[], array2: T[]): boolean;
+export declare function deepObjectCompare(obj1: unknown, obj2: unknown): boolean;
+export declare function keyBy<T>(value: T[], key: keyof T): Record<string, T>;
+export declare function noop(): void;
+export {};

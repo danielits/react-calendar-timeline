@@ -15,4 +15,5 @@ gh-pages
 coverage
 
 *.orig
-dist
+# dist is committed for git installs
+# dist

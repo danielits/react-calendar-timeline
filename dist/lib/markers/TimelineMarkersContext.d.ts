@@ -1,0 +1,18 @@
+import React, { PropsWithChildren } from "react";
+import { MarkerType } from "./markerType";
+export type SubscribeReturn = {
+  unsubscribe: () => void;
+  getMarker: () => MarkerType;
+};
+export type TimelineMarkersContextValue = {
+  markers: MarkerType[];
+  subscribeMarker: (newe: MarkerType) => SubscribeReturn;
+  updateMarker: (upd: MarkerType) => void;
+};
+export declare class TimelineMarkersProvider extends React.Component<PropsWithChildren, TimelineMarkersContextValue> {
+  handleSubscribeToMarker: (newMarker: MarkerType) => SubscribeReturn;
+  handleUpdateMarker: (updateMarker: MarkerType) => void;
+  constructor(props: PropsWithChildren);
+  render(): import("react/jsx-runtime").JSX.Element;
+}
+export declare const TimelineMarkersConsumer: React.Consumer<TimelineMarkersContextValue>;

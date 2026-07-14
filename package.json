@@ -11,7 +11,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
-    "prepare": "husky && npm run build"
+    "prepare": "husky"
   },
   "main": "./dist/react-calendar-timeline.cjs.js",
   "module": "./dist/react-calendar-timeline.es.js",

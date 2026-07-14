@@ -1,0 +1,54 @@
+export declare const overridableStyles: {
+  fontSize: number;
+  color: string;
+  cursor: string;
+  background: string;
+  borderTopWidth: string;
+  borderBottomWidth: string;
+  borderLeftWidth: string;
+  borderRightWidth: string;
+  borderStyle: string;
+  borderColor: string;
+  zIndex: number;
+};
+export declare const selectedStyle: {
+  zIndex: number;
+};
+export declare const selectedAndCanMove: {
+  willChange: string;
+  cursor: string;
+};
+export declare const selectedAndCanResizeLeft: {
+  borderLeftWidth: number;
+};
+export declare const selectedAndCanResizeLeftAndDragLeft: {
+  cursor: string;
+};
+export declare const selectedAndCanResizeRight: {
+  borderRightWidth: string;
+};
+export declare const selectedAndCanResizeRightAndDragRight: {
+  cursor: string;
+};
+export declare const leftResizeStyle: {
+  position: string;
+  width: number;
+  maxWidth: string;
+  minWidth: number;
+  height: string;
+  top: number;
+  left: number;
+  cursor: string;
+  zIndex: number;
+};
+export declare const rightResizeStyle: {
+  position: string;
+  width: number;
+  maxWidth: string;
+  minWidth: number;
+  height: string;
+  top: number;
+  right: number;
+  cursor: string;
+  zIndex: number;
+};
