@@ -526,6 +526,10 @@ export default class App extends Component {
             const ts = ITEM_TYPE_STYLES[item.itemType] || ITEM_TYPE_STYLES.main;
             const selected = itemContext.selected;
             const { left: leftResizeProps, right: rightResizeProps } = getResizeProps();
+            const durationMs = item.end_time - item.start_time;
+            const hours = durationMs / (1000 * 60 * 60);
+            const durationLabel =
+              hours >= 1 ? `${hours.toFixed(1).replace(".", ",")} h` : `${Math.round(durationMs / (1000 * 60))} min`;
             return (
               <div
                 {...getItemProps({
@@ -556,7 +560,9 @@ export default class App extends Component {
                     gap: 4,
                   }}
                 >
-                  {Math.round((item.end_time - item.start_time) / (1000 * 60 * 60))} h
+                  <span className="rct-item-duration" style={{ whiteSpace: "nowrap" }}>
+                    {durationLabel}
+                  </span>
                   {item.showMenu && (
                     <ItemMenu item={item} menuOptions={this.menuOptions} onMenuAction={this.handleMenuAction} />
                   )}

@@ -169,6 +169,8 @@ export default class Item<CustomItem extends TimelineItemBase<number>> extends C
   private startedClicking: boolean = false;
   private startedTouching: boolean = false;
   private dragInProgress: boolean = false;
+  private resizeInProgress: boolean = false;
+  private currentResizeEdge: "left" | "right" | null = null;
 
   constructor(props: ItemProps<CustomItem>) {
     super(props);
@@ -376,6 +378,8 @@ export default class Item<CustomItem extends TimelineItemBase<number>> extends C
       })
       .on("resizestart", (e) => {
         if (this.props.selected) {
+          this.resizeInProgress = true;
+          this.currentResizeEdge = null;
           this.setState({
             resizing: true,
             resizeEdge: null, // we don't know yet
@@ -387,13 +391,12 @@ export default class Item<CustomItem extends TimelineItemBase<number>> extends C
         }
       })
       .on("resizemove", (e) => {
-        if (this.state.resizing) {
-          let resizeEdge = this.state.resizeEdge;
-
-          if (!resizeEdge) {
-            resizeEdge = e.deltaRect.left !== 0 ? "left" : "right";
-            this.setState({ resizeEdge });
+        if (this.resizeInProgress) {
+          if (!this.currentResizeEdge) {
+            this.currentResizeEdge = e.deltaRect.left !== 0 ? "left" : "right";
+            this.setState({ resizeEdge: this.currentResizeEdge });
           }
+          const resizeEdge = this.currentResizeEdge;
           let resizeTime = this.resizeTimeSnap(this.timeFor(e));
 
           if (this.props.moveResizeValidator) {
@@ -404,15 +407,18 @@ export default class Item<CustomItem extends TimelineItemBase<number>> extends C
             this.props.onResizing(this.itemId, resizeTime, resizeEdge);
           }
 
+          this.updateResizeLabel(resizeTime, resizeEdge);
           this.setState({
             resizeTime,
           });
         }
       })
       .on("resizeend", (e) => {
-        if (this.state.resizing) {
+        if (this.resizeInProgress) {
+          this.resizeInProgress = false;
           this.fireInteractEvent(false);
-          const { resizeEdge } = this.state;
+          const resizeEdge = this.currentResizeEdge;
+          this.currentResizeEdge = null;
           let resizeTime = this.resizeTimeSnap(this.timeFor(e));
 
           if (this.props.moveResizeValidator) {
@@ -422,6 +428,7 @@ export default class Item<CustomItem extends TimelineItemBase<number>> extends C
           if (this.props.onResized) {
             this.props.onResized(this.itemId, resizeTime, resizeEdge, this.resizeTimeDelta(e, resizeEdge));
           }
+          this.resetResizeLabel();
           this.setState({
             resizing: false,
             resizeStart: null,
@@ -451,6 +458,62 @@ export default class Item<CustomItem extends TimelineItemBase<number>> extends C
     this.setState({
       interactMounted: true,
     });
+  }
+
+  private formatDuration(ms: number): string {
+    const hours = ms / 3_600_000;
+    if (hours >= 1) return `${hours.toFixed(1).replace(".", ",")} h`;
+    const minutes = ms / 60_000;
+    if (minutes >= 1) return `${Math.round(minutes)} min`;
+    return `${Math.round(ms / 1000)} s`;
+  }
+
+  private getOrCreateResizeOverlay(): HTMLElement {
+    const el = this.itemRef.current!;
+    let overlay = el.querySelector<HTMLElement>(".rct-resize-overlay");
+    if (!overlay) {
+      overlay = document.createElement("div");
+      overlay.className = "rct-resize-overlay";
+      overlay.style.cssText =
+        "position:absolute;inset:0;display:none;align-items:center;" +
+        "padding:0 6px;pointer-events:none;z-index:1;overflow:hidden;background:inherit;";
+      el.appendChild(overlay);
+    }
+    return overlay;
+  }
+
+  private updateResizeLabel(resizeTime: number, resizeEdge: "left" | "right") {
+    const el = this.itemRef.current;
+    if (!el) return;
+    const startTime = resizeEdge === "left" ? resizeTime : this.itemTimeStart;
+    const endTime = resizeEdge === "right" ? resizeTime : this.itemTimeEnd;
+    const durationMs = endTime - startTime;
+    const text = durationMs > 0 && el.offsetWidth >= 50 ? this.formatDuration(durationMs) : "";
+    // Update dedicated duration span if present (defaultItemRenderer)
+    const durSpan = el.querySelector<HTMLElement>(".rct-item-duration");
+    if (durSpan) {
+      durSpan.textContent = text;
+      return;
+    }
+    // Fallback for custom renderers: show overlay without touching existing content
+    const overlay = this.getOrCreateResizeOverlay();
+    overlay.textContent = text;
+    overlay.style.display = "flex";
+  }
+
+  private resetResizeLabel() {
+    const el = this.itemRef.current;
+    if (!el) return;
+    // If using defaultItemRenderer, restore duration in its span
+    const durSpan = el.querySelector<HTMLElement>(".rct-item-duration");
+    if (durSpan) {
+      const durationMs = this.itemTimeEnd - this.itemTimeStart;
+      durSpan.textContent = durationMs > 0 && el.offsetWidth >= 50 ? this.formatDuration(durationMs) : "";
+      return;
+    }
+    // Hide overlay for custom renderers
+    const overlay = el.querySelector<HTMLElement>(".rct-resize-overlay");
+    if (overlay) overlay.style.display = "none";
   }
 
   canResizeLeft(props = this.props) {
