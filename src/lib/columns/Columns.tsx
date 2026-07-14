@@ -1,4 +1,5 @@
 import React, { Component, FC } from "react";
+import { UnitType } from "dayjs";
 
 import { iterateTimes } from "../utility/calendar";
 import { TimelineStateConsumer } from "../timeline/TimelineStateContext";
@@ -49,7 +50,7 @@ class Columns extends Component<ColumnsProps> {
     const lines: React.JSX.Element[] = [];
 
     iterateTimes(canvasTimeStart, canvasTimeEnd, minUnit, timeSteps, (time, nextTime) => {
-      const minUnitValue = time.get(minUnit === "day" ? "date" : minUnit);
+      const minUnitValue = time.get((minUnit === "day" ? "date" : minUnit) as UnitType);
       const firstOfType = minUnitValue === (minUnit === "day" ? 1 : 0);
 
       let classNamesForTime: string[] = [];

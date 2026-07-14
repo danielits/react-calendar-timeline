@@ -91,7 +91,7 @@ class DateHeaderInner<Data> extends React.Component<DateHeaderProps<Data>> {
           this.getRootStyle(this.props.style),
           this.props.className,
           this.getLabelFormat,
-          this.props.unit,
+          this.props.unit as UnitType | "primaryHeader" | undefined,
           this.props.headerData
         )}
       />

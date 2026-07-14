@@ -1,5 +1,5 @@
 /* eslint-disable no-var */
-import dayjs, { Dayjs } from "dayjs";
+import dayjs, { Dayjs, UnitType } from "dayjs";
 import { _get } from "./generic";
 import { Dimension, ItemDimension } from "../types/dimension";
 import {
@@ -78,8 +78,8 @@ export function iterateTimes(
   let time = dayjs(start).startOf(unit);
 
   if (timeSteps[unit] && timeSteps[unit] > 1) {
-    const value = time.get(unit);
-    time = time.set(unit, value - (value % timeSteps[unit]));
+    const value = time.get(unit as UnitType);
+    time = time.set(unit as UnitType, value - (value % timeSteps[unit]));
   }
 
   while (time.valueOf() < end) {
